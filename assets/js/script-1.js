@@ -22,15 +22,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // ====== SERVICE SELECTION ======
-  serviceItems.forEach(item => {
-    item.addEventListener('click', () => {
-      item.classList.toggle('selected');
-      const selected = Array.from(document.querySelectorAll('.service-item.selected'))
-        .map(el => el.dataset.value);
-      selectedServicesInput.value = selected.join(', ');
-    });
+// ====== SERVICE SELECTION ======
+serviceItems.forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault(); // prevent default if item is a button or link
+    item.classList.toggle('selected'); // toggle selection
+    // collect all selected service values
+    const selected = Array.from(serviceItems)
+      .filter(el => el.classList.contains('selected'))
+      .map(el => el.dataset.value);
+    selectedServicesInput.value = selected.join(', ');
   });
+});
+
 
   // ====== TIME SLOTS (9 AM to 6 PM, 2-hour gap) ======
   const timeSlots = [];
