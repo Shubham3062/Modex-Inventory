@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzHDW-urlNrN-KoqTYL2aB6RhcIwkTK4wxrh6BL_do/dev';
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzMLR6UlW0lzYs-SU76Sk3pFsky8lillRaTaCXcVgpoLdMKr9j-ydWEwTvnfCUkaDdz/exec';
 
   // ----- Get the form first and bail fast if missing -----
   const form = document.getElementById('bookingForm');
