@@ -256,8 +256,6 @@ body.nav-active { overflow: hidden; }
   #HEADER
 \*-----------------------------------*/
 
-.header .btn { display: none; }
-
 .header {
   position: absolute;
   top: 0;
@@ -1087,6 +1085,12 @@ body.nav-active { overflow: hidden; }
     font-size: 14px;
   }
 
+  .header .container .btn.btn-primary {
+    font-size: 13px;
+    margin-right: -20%;
+    padding: 10px 20px;
+  }
+
   /* Adjust content wrapper to be centered with better spacing */
   .bottom-banner-content-wrapper {
     flex-direction: column;
@@ -1099,6 +1103,7 @@ body.nav-active { overflow: hidden; }
     max-width: 250px; /* Prevent button from becoming too large */
     text-align: center;
   }
+
 }
 
 /* Smaller mobile devices (portrait) */
@@ -1118,6 +1123,7 @@ body.nav-active { overflow: hidden; }
   .bottom-banner-content-wrapper {
     padding: 0 10px;
   }
+
 }
 
 
