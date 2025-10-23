@@ -805,6 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const WEB_APP_URL =
     'https://script.google.com/macros/s/AKfycbxfr9NVrEoGqvzdlh8BLlThz_0v4TCQncv-EV_0GNVYzTpfH-0rJ6P_EycnqApX6IzR/exec';
 
+  // NOTE: For direct fetch from GitHub Pages to a Google Apps Script you must
+  // deploy the script as "Execute the app as: Me" and "Who has access: Anyone, even anonymous".
+  // If CORS blocks the fetch, the fallback below submits a regular form POST (no preflight)
+  // into a hidden iframe so the sheet still receives data.
+
   // fetch references (some depend on the form so delay retrieving those until we know the form exists)
   const form = document.getElementById('bookingForm');
   const serviceItems = document.querySelectorAll('.service-item');
@@ -891,6 +896,53 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.remove();
   }
 
+  // create a hidden iframe for fallback form submission (prevents navigation)
+  function ensureFallbackIframe() {
+    let iframe = document.getElementById('gsFallbackFrame');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.name = 'gsFallbackFrame';
+      iframe.id = 'gsFallbackFrame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    return iframe;
+  }
+
+  // fallback: create a standard form and submit (no CORS preflight)
+  function fallbackSubmit(payload) {
+    try {
+      ensureFallbackIframe();
+      const fallbackForm = document.createElement('form');
+      fallbackForm.style.display = 'none';
+      fallbackForm.method = 'POST';
+      fallbackForm.action = WEB_APP_URL;
+      fallbackForm.target = 'gsFallbackFrame';
+
+      // append all fields as inputs
+      Object.keys(payload).forEach((key) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = payload[key] == null ? '' : payload[key];
+        fallbackForm.appendChild(input);
+      });
+
+      document.body.appendChild(fallbackForm);
+      fallbackForm.submit();
+
+      // clean up after a short delay
+      setTimeout(() => {
+        fallbackForm.remove();
+      }, 2000);
+
+      showMessage('Booking submitted (fallback). If you do not receive confirmation, contact us.', 'success');
+    } catch (err) {
+      console.error('Fallback submission failed:', err);
+      showMessage('Failed to submit booking. Please try again later (server or CORS issue).');
+    }
+  }
+
   // ====== FORM SUBMIT ======
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -935,26 +987,32 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.textContent = 'Booking...';
 
     try {
+      // Try JSON fetch first (clean server responses)
       const res = await fetch(WEB_APP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Network error or invalid server response.');
-
-      showMessage('Booking confirmed successfully!', 'success');
-      form.reset();
-      document
-        .querySelectorAll('.service-item, .time-slot')
-        .forEach((el) => el.classList.remove('selected'));
-      selectedServicesInput.value = '';
-      selectedTimeInput.value = '';
-      renderTimeSlots(); // re-render slots after reset
+      if (!res.ok) {
+        // If server returns non-OK, attempt fallback POST form (no CORS preflight)
+        console.warn('Fetch failed or non-OK response, using fallback form POST.');
+        fallbackSubmit(payload);
+      } else {
+        // Success via fetch
+        showMessage('Booking confirmed successfully!', 'success');
+        form.reset();
+        document
+          .querySelectorAll('.service-item, .time-slot')
+          .forEach((el) => el.classList.remove('selected'));
+        selectedServicesInput.value = '';
+        selectedTimeInput.value = '';
+        renderTimeSlots(); // re-render slots after reset
+      }
     } catch (err) {
-      console.error(err);
-      // Distinguish CORS/server errors for clarity
-      showMessage('Failed to submit booking. Please try again later (server or CORS issue).');
+      console.error('Fetch error — likely CORS. Falling back to form POST:', err);
+      // If fetch throws (often CORS), use fallback form POST which avoids preflight
+      fallbackSubmit(payload);
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Confirm Booking';
