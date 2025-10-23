@@ -805,21 +805,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const WEB_APP_URL =
     'https://script.google.com/macros/s/AKfycbxfr9NVrEoGqvzdlh8BLlThz_0v4TCQncv-EV_0GNVYzTpfH-0rJ6P_EycnqApX6IzR/exec';
 
+  // fetch references (some depend on the form so delay retrieving those until we know the form exists)
   const form = document.getElementById('bookingForm');
   const serviceItems = document.querySelectorAll('.service-item');
   const selectedServicesInput = document.getElementById('selectedServices');
   const timeSlotsList = document.getElementById('timeSlotsList');
   const selectedTimeInput = document.getElementById('selectedTime');
-  const submitBtn = form.querySelector('button[type="submit"]');
   const dateInput = document.getElementById('date'); // <-- make sure it exists
 
+  // Basic existence checks:
+  if (!form) {
+    console.error('Form element with id "bookingForm" not found.');
+    return;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+
   if (
-    !form ||
-    !serviceItems ||
+    !submitBtn ||
+    serviceItems.length === 0 ||
     !selectedServicesInput ||
     !timeSlotsList ||
     !selectedTimeInput ||
-    !submitBtn ||
     !dateInput
   ) {
     console.error('One or more required elements are missing in the DOM.');
@@ -946,7 +953,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderTimeSlots(); // re-render slots after reset
     } catch (err) {
       console.error(err);
-      showMessage('Failed to submit booking. Please try again later.');
+      // Distinguish CORS/server errors for clarity
+      showMessage('Failed to submit booking. Please try again later (server or CORS issue).');
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Confirm Booking';
