@@ -1,45 +1,62 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzMLR6UlW0lzYs-SU76Sk3pFsky8lillRaTaCXcVgpoLdMKr9j-ydWEwTvnfCUkaDdz/exec';
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzHDW-urlNrN-KoqTYL2aB6RhcIwkTK4wxrh6BL_do/dev';
 
-  // ====== SELECT ELEMENTS SAFELY ======
-  const getEl = (id) => {
-    const el = document.getElementById(id);
-    if (!el) console.warn(`Element with id "${id}" not found`);
-    return el;
-  };
-
-  const form = getEl('bookingForm');
-  const serviceItems = document.querySelectorAll('.service-item');
-  const selectedServicesInput = getEl('selectedServices');
-  const timeSlotsList = getEl('timeSlotsList');
-  const selectedTimeInput = getEl('selectedTime');
-  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
-  const dateInput = getEl('date');
-
-  // Stop if critical elements are missing
-  if (!form || !selectedServicesInput || !timeSlotsList || !selectedTimeInput || !submitBtn || !dateInput) {
-    console.error('Critical form elements missing. Cannot initialize booking form.');
+  // ----- Get the form first and bail fast if missing -----
+  const form = document.getElementById('bookingForm');
+  if (!form) {
+    console.error('Critical: <form id="bookingForm"> not found in DOM. Aborting script.');
     return;
   }
 
-// ================== SERVICE SELECTION ==================
-serviceItems.forEach(item => {
-  item.addEventListener('click', () => {
-    item.classList.toggle('selected');
-    const selected = Array.from(document.querySelectorAll('.service-item.selected')).map(el => el.dataset.value);
-    selectedServicesInput.value = selected.join(', ');
-  });
-});
+  // ----- Query children only after confirming the form exists -----
+  const serviceItems = document.querySelectorAll('.service-item'); // ok if empty
+  const selectedServicesInput = document.getElementById('selectedServices');
+  const timeSlotsList = document.getElementById('timeSlotsList');
+  const selectedTimeInput = document.getElementById('selectedTime');
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const dateInput = document.getElementById('date');
+
+  // Validate required elements, list which ones are missing
+  const missing = [];
+  if (!selectedServicesInput) missing.push('#selectedServices (hidden input for services)');
+  if (!selectedTimeInput) missing.push('#selectedTime (hidden input for time)');
+  if (!submitBtn) missing.push('form button[type="submit"]');
+  if (!dateInput) missing.push('#date (date input)');
+  if (!timeSlotsList) console.warn('Optional: #timeSlotsList not found — time slots UI will not render.');
+  if (missing.length) {
+    console.error('One or more required elements are missing in the DOM:', missing.join(', '));
+    // We choose to stop because critical inputs are missing and will cause runtime errors later.
+    return;
+  }
+
+  // ====== SERVICE SELECTION ======
+  // serviceItems may be empty (no selection UI) — handle gracefully
+  if (serviceItems.length === 0) {
+    console.warn('No .service-item elements found. Service selection UI will be disabled.');
+  } else {
+    serviceItems.forEach(item => {
+      // guard in case of bizarre DOM mutation
+      if (!item) return;
+      item.addEventListener('click', () => {
+        item.classList.toggle('selected');
+        const selected = Array.from(document.querySelectorAll('.service-item.selected'))
+                              .map(el => el.dataset.value)
+                              .filter(Boolean);
+        selectedServicesInput.value = selected.join(', ');
+      });
+    });
+  }
 
   // ====== TIME SLOTS (9 AM to 6 PM, 2-hour gap) ======
   const timeSlots = [];
   for (let hour = 9; hour <= 17; hour += 2) {
-    const timeStr = new Date(0, 0, 0, hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    timeSlots.push(timeStr);
+    // Use fixed formatting to avoid locale surprises in parsing/storage
+    const hh = String(hour).padStart(2, '0');
+    timeSlots.push(`${hh}:00`);
   }
 
-  const renderTimeSlots = () => {
-    if (!timeSlotsList) return;
+  function renderTimeSlots() {
+    if (!timeSlotsList) return; // defensive
     timeSlotsList.innerHTML = '';
     timeSlots.forEach(time => {
       const div = document.createElement('div');
@@ -52,96 +69,111 @@ serviceItems.forEach(item => {
       });
       timeSlotsList.appendChild(div);
     });
-  };
+  }
 
-  renderTimeSlots();
+  // Render only if container exists
+  if (timeSlotsList) renderTimeSlots();
 
   // ====== MESSAGE HELPERS ======
-  const showMessage = (msg, type = 'error') => {
+  function showMessage(msg, type = 'error') {
     let el = form.querySelector('.form-message');
     if (!el) {
       el = document.createElement('div');
       el.className = 'form-message';
       el.style.marginTop = '0.5rem';
-      form.insertBefore(el, submitBtn);
+      // insert just before submit button if available, otherwise append
+      if (submitBtn && submitBtn.parentNode) form.insertBefore(el, submitBtn);
+      else form.appendChild(el);
     }
     el.textContent = msg;
     el.style.color = type === 'error' ? '#b00020' : '#006400';
-  };
+  }
 
-  const clearMessage = () => {
+  function clearMessage() {
     const el = form.querySelector('.form-message');
     if (el) el.remove();
-  };
+  }
+
+  // ----- Utility: safe getter that doesn't crash if element missing (returns empty string) -----
+  function safeValue(id) {
+    const el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  }
 
   // ====== FORM SUBMIT ======
-  if (form) {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      clearMessage();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMessage();
 
-      const payload = {
-        name: getEl('name')?.value.trim() || '',
-        email: getEl('email')?.value.trim() || '',
-        phone: getEl('phone')?.value.trim() || '',
-        services: selectedServicesInput.value,
-        bedrooms: getEl('bedrooms')?.value || '',
-        bathrooms: getEl('bathrooms')?.value || '',
-        garden: getEl('garden')?.value || '',
-        garage: getEl('garage')?.value || '',
-        address1: getEl('address1')?.value || '',
-        address2: getEl('address2')?.value || '',
-        city: getEl('city')?.value || '',
-        country: getEl('country')?.value || '',
-        postcode: getEl('postcode')?.value || '',
-        furnished: getEl('furnished')?.value || '',
-        additional: getEl('additional')?.value || '',
-        keysCollect: getEl('keysCollect')?.value || '',
-        keysReturn: getEl('keysReturn')?.value || '',
-        date: dateInput.value,
-        time: selectedTimeInput.value,
-        notes: getEl('notes')?.value.trim() || ''
-      };
+    // Build payload using safeValue for resilience
+    const payload = {
+      name: safeValue('name'),
+      email: safeValue('email'),
+      phone: safeValue('phone'),
+      services: safeValue('selectedServices'),
+      bedrooms: safeValue('bedrooms'),
+      bathrooms: safeValue('bathrooms'),
+      garden: safeValue('garden'),
+      garage: safeValue('garage'),
+      address1: safeValue('address1'),
+      address2: safeValue('address2'),
+      city: safeValue('city'),
+      country: safeValue('country'),
+      postcode: safeValue('postcode'),
+      furnished: safeValue('furnished'),
+      additional: safeValue('additional'),
+      keysCollect: safeValue('keysCollect'),
+      keysReturn: safeValue('keysReturn'),
+      date: dateInput.value || '',
+      time: safeValue('selectedTime'),
+      notes: safeValue('notes')
+    };
 
-      // ====== BASIC VALIDATION ======
-      if (!payload.name) return showMessage('Please enter your full name.');
-      if (!payload.email.includes('@')) return showMessage('Please enter a valid email address.');
-      if (!/^0\d{10}$/.test(payload.phone.replace(/\s+/g, ''))) return showMessage('Enter a valid UK mobile number (11 digits, starts with 0).');
-      if (!payload.services) return showMessage('Please select at least one service.');
-      if (!payload.date) return showMessage('Please select a preferred date.');
-      if (!payload.time) return showMessage('Please select a time slot.');
+    // ====== BASIC VALIDATION ======
+    if (!payload.name) return showMessage('Please enter your full name.');
+    if (!payload.email.includes('@')) return showMessage('Please enter a valid email address.');
+    const phoneDigits = payload.phone.replace(/\s+/g, '');
+    if (!/^0\d{10}$/.test(phoneDigits)) return showMessage('Enter a valid UK mobile number (11 digits, starts with 0).');
+    if (!payload.services) return showMessage('Please select at least one service.');
+    if (!payload.date) return showMessage('Please select a preferred date.');
+    if (!payload.time) return showMessage('Please select a time slot.');
 
+    // Disable submit UI
+    if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Booking...';
+    }
 
-      console.log('Submitting payload:', payload);
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      try {
-        const res = await fetch(WEB_APP_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+      if (!res.ok) {
+        // Try to extract server message if any
+        let text = await res.text().catch(() => '');
+        throw new Error(`Network/server error ${res.status}${text ? ': ' + text : ''}`);
+      }
 
-        if (!res.ok) throw new Error(`Network error or invalid server response: ${res.status}`);
+      showMessage('Booking confirmed successfully!', 'success');
 
-        const result = await res.json();
-        console.log('Server response:', result);
+      // Reset form + UI
+      form.reset();
+      document.querySelectorAll('.service-item.selected, .time-slot.selected').forEach(el => el.classList.remove('selected'));
+      if (selectedServicesInput) selectedServicesInput.value = '';
+      if (selectedTimeInput) selectedTimeInput.value = '';
+      if (timeSlotsList) renderTimeSlots();
 
-        showMessage('Booking confirmed successfully!', 'success');
-        form.reset();
-        document.querySelectorAll('.service-item, .time-slot').forEach(el => el.classList.remove('selected'));
-        selectedServicesInput.value = '';
-        selectedTimeInput.value = '';
-        renderTimeSlots();
-
-      } catch (err) {
-        console.error('Submit error:', err);
-        showMessage('Failed to submit booking. Please try again later.');
-      } finally {
+    } catch (err) {
+      console.error('Submit error:', err);
+      showMessage('Failed to submit booking. Please try again later.');
+    } finally {
+      if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Confirm Booking';
       }
-    });
-  }
+    }
+  });
 });
